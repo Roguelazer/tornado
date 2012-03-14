@@ -95,7 +95,7 @@ class IOStream(object):
         self._read_callback = None
         self._streaming_callback = None
         self._write_callback = None
-        self._close_callback = None
+        self._close_callbacks = []
         self._connect_callback = None
         self._connecting = False
         self._state = None
@@ -201,7 +201,7 @@ class IOStream(object):
 
     def set_close_callback(self, callback):
         """Call the given callback when the stream is closed."""
-        self._close_callback = stack_context.wrap(callback)
+        self._close_callbacks.append(stack_context.wrap(callback))
 
     def close(self):
         """Close this stream."""
@@ -220,9 +220,9 @@ class IOStream(object):
             if self._close_callback and self._pending_callbacks == 0:
                 # if there are pending callbacks, don't run the close callback
                 # until they're done (see _maybe_add_error_handler)
-                cb = self._close_callback
-                self._close_callback = None
-                self._run_callback(cb)
+                while self._close_callbacks:
+                    cb = self._close_callbacks.pop(0)
+                    self._run_callback(cb)
 
     def reading(self):
         """Returns true if we are currently reading from the stream."""
@@ -535,9 +535,8 @@ class IOStream(object):
     def _maybe_add_error_listener(self):
         if self._state is None and self._pending_callbacks == 0:
             if self.socket is None:
-                cb = self._close_callback
-                if cb is not None:
-                    self._close_callback = None
+                while self._close_callbacks:
+                    cb = self._close_callbacks.pop(0)
                     self._run_callback(cb)
             else:
                 self._add_io_state(ioloop.IOLoop.READ)

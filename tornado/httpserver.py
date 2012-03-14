@@ -221,10 +221,26 @@ class HTTPConnection(object):
                 disconnect = True
         self._request = None
         self._request_finished = False
+        self.on_finish(disconnect)
         if disconnect:
             self.stream.close()
             return
         self.stream.read_until(b("\r\n\r\n"), self._header_callback)
+
+    def on_headers(self, start_line, headers):
+        """Hook for users who wish to subclass HTTPConnection and add additional
+        logic to the HTTP request header phase. This will be run immediately
+        before self.request_callback; note also that self._request will be
+        available to this callback.
+        """
+        pass
+
+    def on_finish(self, disconnecting):
+        """Hook for users who with to add additional logic to the request finish
+        phase. The parameter `disconnecting' is True if the underlying IOStream
+        is about to be closed, False otherwise.
+        """
+        pass
 
     def _on_headers(self, data):
         try:
@@ -252,6 +268,7 @@ class HTTPConnection(object):
                 self.stream.read_bytes(content_length, self._on_request_body)
                 return
 
+            self.on_headers(start_line, headers)
             self.request_callback(self._request)
         except _BadRequestException, e:
             logging.info("Malformed HTTP request from %s: %s",
